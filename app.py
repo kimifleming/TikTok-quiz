@@ -61,63 +61,56 @@ def full_reset():
 # --- UI Setup ---
 st.set_page_config(page_title="GLIZZY GUESS WHO", page_icon="🌭", layout="centered")
 
-# CUSTOM CSS FOR MOBILE POLISH
+# FIXING THE CSS FOR CENTERED GREEN BUTTON
 st.markdown("""
     <style>
-    /* Header Bar */
+    /* Header Bar Fixes */
     .header-bar {
         background-color: #FF4B4B;
         color: white;
         text-align: center;
-        padding: 8px 0px;
+        padding: 10px 0px;
         border-bottom: 5px solid #9d0208;
-        margin-bottom: 15px;
-        width: 100%;
-        border-radius: 0px 0px 15px 15px;
+        margin: -10px -20px 20px -20px; /* Pull to edges */
+        width: calc(100% + 40px);
     }
     .header-title {
-        white-space: nowrap;
-        font-size: 28px;
+        font-size: 26px;
         font-weight: 900;
         text-transform: uppercase;
         text-shadow: -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 2px 2px 0 #000;
     }
 
-    /* Remove the ugly default form border */
+    /* Remove form border */
     [data-testid="stForm"] {
         border: none !important;
-        padding: 0px !important;
+        padding: 0 !important;
     }
 
-    /* Center and Style the Green Submit Button */
+    /* CENTERED GREEN BUTTON FIX */
     div.stForm [data-testid="stFormSubmitButton"] {
-        display: flex;
-        justify-content: center;
-        margin-top: 20px;
+        text-align: center;
+        display: block;
+        width: 100%;
     }
 
     div.stForm [data-testid="stFormSubmitButton"] button {
         background-color: #28a745 !important;
         color: white !important;
-        width: 80% !important; /* Not full width, looks cleaner centered */
+        width: 85% !important; /* Wide enough to prevent text wrap */
+        margin: 0 auto !important;
+        display: block !important;
         height: 3.5em !important;
-        font-size: 22px !important;
+        font-size: 24px !important;
         font-weight: bold !important;
-        border-radius: 50px !important; /* Rounded pill shape */
-        border: 3px solid #1e7e34 !important;
+        border-radius: 20px !important;
+        border: 2px solid #1e7e34 !important;
         box-shadow: 0px 4px 10px rgba(0,0,0,0.3);
     }
-
-    /* Make text inputs and file uploaders look cleaner */
-    .stTextInput input, .stTextArea textarea {
-        border-radius: 12px !important;
-    }
-
-    /* Style for Vote Buttons in Quiz */
-    .stButton > button {
-        border-radius: 12px !important;
-        height: 3.2em;
-        font-size: 16px !important;
+    
+    /* Input Styling */
+    .stTextInput input {
+        border-radius: 10px !important;
     }
     </style>
     <div class="header-bar">
@@ -154,10 +147,10 @@ try:
         if os.path.exists(DATA_FILE):
             st.metric("Total Entrants", len(pd.read_csv(DATA_FILE)))
 
-        # Clean Submission Form
         with st.form("sub_form", clear_on_submit=True):
             name = st.text_input("Your Name", placeholder="Enter your name...")
             file = st.file_uploader("Photo or Video", type=["mp4", "mov", "jpg", "jpeg", "png"])
+            # The CSS above centers this specifically
             st.form_submit_button("SUBMIT")
 
         st.write("")
