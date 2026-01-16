@@ -52,11 +52,9 @@ def save_submission(name, uploaded_file):
 def save_all_guesses(df_results, guesser_name):
     if os.path.exists(GUESS_FILE):
         existing = pd.read_csv(GUESS_FILE)
-        # Filter out any old guesses by this same person to avoid duplicates
         existing = existing[existing['Guesser'] != guesser_name]
         updated = pd.concat([existing, df_results], ignore_index=True)
-    else:
-        updated = df_results
+    else: updated = df_results
     updated.to_csv(GUESS_FILE, index=False)
 
 # --- UI Setup ---
@@ -66,10 +64,15 @@ st.markdown("""
     <style>
     .header-bar { background-color: #FF4B4B; color: white; text-align: center; padding: 10px 0px; border-bottom: 5px solid #9d0208; margin: -10px -20px 20px -20px; width: calc(100% + 40px); }
     .header-title { font-size: 26px; font-weight: 900; text-transform: uppercase; text-shadow: -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, -2px 2px 0 #000; }
+    
+    /* GREEN SUBMIT BUTTON */
     div.stForm [data-testid="stFormSubmitButton"] button { background-color: #28a745 !important; color: white !important; font-weight: bold !important; width: 100%; border: none; }
-    .stButton > button { height: 3.5em; font-size: 18px !important; border-radius: 10px; }
-    /* CHOOSING BUTTONS: Stay Purple when selected */
-    .stButton > button:focus, .stButton > button:active { background-color: #702963 !important; color: white !important; border: 2px solid #4B0082 !important; }
+    
+    /* CLEANER BUTTONS (Removed Purple Flash) */
+    .stButton > button { height: 3.5em; font-size: 18px !important; border-radius: 10px; transition: none !important; }
+    
+    /* Selection Highlight (Red) */
+    div[data-testid="stButton"] button[kind="primary"] { background-color: #FF4B4B !important; color: white !important; border: 2px solid #9d0208 !important; }
     </style>
     <div class="header-bar"><div class="header-title">🌭 GLIZZY GUESS WHO 🌭</div></div>
     """, unsafe_allow_html=True)
@@ -85,9 +88,11 @@ try:
             st.success("🎉 Submission received!")
             is_host = (sub_df.iloc[0]['Name'] == st.session_state.get('my_name', ''))
             if is_host:
+                st.info("👑 **You are the host.** Wait for everyone to join, then click Create the Quiz.")
                 if st.button("🚀 CREATE THE QUIZ", type="primary", use_container_width=True):
                     set_state("quiz", int(time.time())); st.rerun()
-            else: st.info("Waiting for host...")
+            else: 
+                st.info("⌛ **Please wait for the host to start the quiz.**")
             time.sleep(3); st.rerun()
         else:
             with st.form("sub_form", clear_on_submit=True):
@@ -104,68 +109,49 @@ try:
     elif current_state == "quiz":
         if 'shuffled_df' not in st.session_state:
             st.session_state.shuffled_df = sub_df.sample(frac=1, random_state=shared_seed).reset_index(drop=True)
-            st.session_state.temp_guesses = {} # Store selection without saving to CSV yet
+            st.session_state.temp_guesses = {}
         
         df = st.session_state.shuffled_df
         guesser = st.text_input("Confirm Your Name", value=st.session_state.get('my_name', ''))
         
-        # DISPLAY ALL QUESTIONS ON ONE SCREEN
         for idx, row in df.iterrows():
             with st.container(border=True):
                 st.write(f"### Item {idx + 1}")
                 if row['Ext'] in ['jpg', 'jpeg', 'png']: st.image(row['Path'], use_container_width=True)
                 else: st.video(row['Path'])
-                
                 names = sorted(sub_df['Name'].unique().tolist())
                 cols = st.columns(2)
                 for i, n in enumerate(names):
-                    # Highlight button if already selected
+                    # Using 'primary' for the selected one to color it red via CSS
                     is_selected = st.session_state.temp_guesses.get(idx, {}).get('Guess') == n
                     btn_type = "primary" if is_selected else "secondary"
                     if cols[i % 2].button(n, key=f"q{idx}_{n}", use_container_width=True, type=btn_type):
                         st.session_state.temp_guesses[idx] = {'Owner': row['Name'], 'Guess': n}
-                
+                        st.rerun()
                 st.text_area("Comment:", key=f"comm_{idx}", placeholder="Optional...")
 
         st.divider()
         if st.button("✅ SUBMIT ALL GUESSES", type="primary", use_container_width=True):
-            if len(st.session_state.temp_guesses) < len(df):
-                st.error(f"Please guess for all {len(df)} items first!")
-            elif not guesser:
-                st.error("Please enter your name!")
+            if len(st.session_state.temp_guesses) < len(df): st.error(f"Finish all {len(df)}!")
+            elif not guesser: st.error("Enter your name!")
             else:
-                # Compile and Save
-                final_list = []
-                for idx, g in st.session_state.temp_guesses.items():
-                    comm = st.session_state.get(f"comm_{idx}", "")
-                    final_list.append([g['Owner'], g['Guess'], comm, guesser])
-                
+                final_list = [[g['Owner'], g['Guess'], st.session_state.get(f"comm_{idx}", ""), guesser] for idx, g in st.session_state.temp_guesses.items()]
                 save_all_guesses(pd.DataFrame(final_list, columns=["Owner", "Guess", "Comment", "Guesser"]), guesser)
-                st.session_state.quiz_complete = True
                 set_state("sync", shared_seed); st.rerun()
 
     elif current_state == "sync":
         st.header("⏳ Waiting for others...")
         guess_df = pd.read_csv(GUESS_FILE) if os.path.exists(GUESS_FILE) else pd.DataFrame()
-        
-        # Calculate how many people have finished
         finished_players = guess_df['Guesser'].nunique() if not guess_df.empty else 0
-        total_expected = submission_count
-        
-        st.metric("Players Finished", f"{finished_players} / {total_expected}")
-        st.progress(finished_players / total_expected)
-        
-        if finished_players >= total_expected:
-            st.success("Everyone is done! Loading results...")
-            time.sleep(2)
+        st.metric("Players Finished", f"{finished_players} / {submission_count}")
+        st.progress(finished_players / submission_count)
+        if finished_players >= submission_count:
+            st.success("Everyone is done! Loading results..."); time.sleep(2)
             set_state("results", shared_seed); st.rerun()
-        else:
-            st.info("The page will refresh automatically as others finish.")
-            time.sleep(5); st.rerun()
+        else: time.sleep(5); st.rerun()
 
     elif current_state == "results":
         st.subheader("📊 Final Results")
-        # (Standard results logic continues here)
         df = sub_df.sample(frac=1, random_state=shared_seed).reset_index(drop=True)
         guesses_df = pd.read_csv(GUESS_FILE)
         for i, row in df.iterrows():
@@ -181,18 +167,15 @@ try:
                     c = str(g['Comment']).strip()
                     if c and c.lower() != "nan": st.caption(f"💬 **{g['Guesser']}**: {c}")
                 if st.button(f"✨ REVEAL ✨", key=f"rev_{i}", use_container_width=True):
-                    st.balloons(); st.warning(f"THE OWNER: {row['Name']}")
+                    st.balloons(); st.warning(f"Glizzy: {row['Name']}")
         
         st.divider()
         with st.expander("🛠️ Reset"):
             if st.button("Reset Game"): st.session_state.wants_reset = True
 
-    # Confirmation Logic
     if st.session_state.get("wants_reset", False):
-        st.error("‼️ Reset everything?")
-        rc1, rc2 = st.columns(2)
-        if rc1.button("🔥 YES"): full_reset()
-        if rc2.button("🚫 NO"): st.session_state.wants_reset = False; st.rerun()
+        st.error("‼️ Reset everything?"); c1, c2 = st.columns(2)
+        if c1.button("🔥 YES"): full_reset()
+        if c2.button("🚫 NO"): st.session_state.wants_reset = False; st.rerun()
 
-except Exception as e:
-    st.error(f"Error: {e}")
+except Exception as e: st.error(f"Error: {e}")
