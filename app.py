@@ -86,20 +86,21 @@ try:
                 names_display.append(f"**{name}**{suffix}")
             st.write(f"**Players in lobby:** {', '.join(names_display)}")
 
-        if st.session_state.get('submitted', False):
-            st.success("🎉 Submission received!")
-            is_host = (sub_df.iloc[0]['Name'] == st.session_state.get('my_name', ''))
-            if is_host:
-                st.info("👑 **You are the host.** Wait for everyone to join, then click Create the Quiz.")
-                if st.button("🚀 CREATE THE QUIZ", type="primary", use_container_width=True):
-                    set_state("quiz", int(time.time())); st.rerun()
-            else: 
-                st.info("⌛ **Please wait for the host to start the quiz.**")
-            time.sleep(3); st.rerun()
+        # ALWAYS show this area once someone has submitted, regardless of session memory
+        if st.session_state.get('submitted', False) or submission_count > 0:
+            if st.session_state.get('submitted', False):
+                st.success("🎉 Submission received!")
+            
+            st.divider()
+            st.info("📢 **If you are the host:** Click the button below once everyone has joined. Everyone else, please wait.")
+            if st.button("🚀 CREATE THE QUIZ", type="primary", use_container_width=True):
+                set_state("quiz", int(time.time())); st.rerun()
+            
+            # Auto-refresh for non-hosts to see when the game starts
+            time.sleep(5); st.rerun()
         else:
             with st.form("sub_form", clear_on_submit=True):
                 name = st.text_input("Your Name")
-                # Updated Label Here
                 file = st.file_uploader("Upload", type=["mp4", "mov", "jpg", "jpeg", "png"])
                 if st.form_submit_button("SUBMIT"):
                     if name and file:
@@ -149,7 +150,7 @@ try:
         still_waiting = [p for p in all_players if p not in voted_players]
         
         st.metric("Players Finished", f"{len(voted_players)} / {submission_count}")
-        st.progress(len(voted_players) / submission_count)
+        st.progress(len(voted_players) / (submission_count if submission_count > 0 else 1))
         
         col1, col2 = st.columns(2)
         with col1:
@@ -159,7 +160,7 @@ try:
             st.write("🏃 **Still Guessing:**")
             for p in still_waiting: st.write(f"- {p}")
 
-        if len(voted_players) >= submission_count:
+        if len(voted_players) >= submission_count and submission_count > 0:
             st.success("Everyone is done! Loading results..."); time.sleep(2)
             set_state("results", shared_seed); st.rerun()
         else: time.sleep(5); st.rerun()
