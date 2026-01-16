@@ -61,9 +61,10 @@ def full_reset():
 # --- UI Setup ---
 st.set_page_config(page_title="GLIZZY GUESS WHO", page_icon="🌭", layout="centered")
 
-# MINIMAL CSS: Header Bar only
+# TARGETED CSS: Only the Header and the Green Submit Button
 st.markdown("""
     <style>
+    /* Header Bar Styling */
     .header-bar {
         background-color: #FF4B4B;
         color: white;
@@ -79,7 +80,17 @@ st.markdown("""
         text-transform: uppercase;
         text-shadow: -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 2px 2px 0 #000;
     }
-    /* Buttons in quiz/results stay tap-friendly */
+    
+    /* TARGETED GREEN SUBMIT BUTTON */
+    /* This only touches the button inside the form */
+    div.stForm [data-testid="stFormSubmitButton"] button {
+        background-color: #28a745 !important;
+        color: white !important;
+        font-weight: bold !important;
+        border: 1px solid #1e7e34 !important;
+    }
+
+    /* Keep Quiz buttons large for mobile thumbs */
     .stButton > button {
         height: 3.5em;
         font-size: 18px !important;
@@ -120,7 +131,7 @@ try:
         if os.path.exists(DATA_FILE):
             st.metric("Total Entrants", len(pd.read_csv(DATA_FILE)))
 
-        # Standard Streamlit Form (No custom button CSS)
+        # Form with standard layout but Green Color
         with st.form("sub_form", clear_on_submit=True):
             name = st.text_input("Your Name", placeholder="Enter your name...")
             file = st.file_uploader("Photo or Video", type=["mp4", "mov", "jpg", "jpeg", "png"])
