@@ -61,17 +61,16 @@ def full_reset():
 # --- UI Setup ---
 st.set_page_config(page_title="GLIZZY GUESS WHO", page_icon="🌭", layout="centered")
 
-# FIXING THE CSS FOR CENTERED GREEN BUTTON
+# MINIMAL CSS: Header Bar only
 st.markdown("""
     <style>
-    /* Header Bar Fixes */
     .header-bar {
         background-color: #FF4B4B;
         color: white;
         text-align: center;
         padding: 10px 0px;
         border-bottom: 5px solid #9d0208;
-        margin: -10px -20px 20px -20px; /* Pull to edges */
+        margin: -10px -20px 20px -20px;
         width: calc(100% + 40px);
     }
     .header-title {
@@ -80,37 +79,11 @@ st.markdown("""
         text-transform: uppercase;
         text-shadow: -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 2px 2px 0 #000;
     }
-
-    /* Remove form border */
-    [data-testid="stForm"] {
-        border: none !important;
-        padding: 0 !important;
-    }
-
-    /* CENTERED GREEN BUTTON FIX */
-    div.stForm [data-testid="stFormSubmitButton"] {
-        text-align: center;
-        display: block;
-        width: 100%;
-    }
-
-    div.stForm [data-testid="stFormSubmitButton"] button {
-        background-color: #28a745 !important;
-        color: white !important;
-        width: 85% !important; /* Wide enough to prevent text wrap */
-        margin: 0 auto !important;
-        display: block !important;
-        height: 3.5em !important;
-        font-size: 24px !important;
-        font-weight: bold !important;
-        border-radius: 20px !important;
-        border: 2px solid #1e7e34 !important;
-        box-shadow: 0px 4px 10px rgba(0,0,0,0.3);
-    }
-    
-    /* Input Styling */
-    .stTextInput input {
-        border-radius: 10px !important;
+    /* Buttons in quiz/results stay tap-friendly */
+    .stButton > button {
+        height: 3.5em;
+        font-size: 18px !important;
+        border-radius: 10px;
     }
     </style>
     <div class="header-bar">
@@ -147,10 +120,10 @@ try:
         if os.path.exists(DATA_FILE):
             st.metric("Total Entrants", len(pd.read_csv(DATA_FILE)))
 
+        # Standard Streamlit Form (No custom button CSS)
         with st.form("sub_form", clear_on_submit=True):
             name = st.text_input("Your Name", placeholder="Enter your name...")
             file = st.file_uploader("Photo or Video", type=["mp4", "mov", "jpg", "jpeg", "png"])
-            # The CSS above centers this specifically
             st.form_submit_button("SUBMIT")
 
         st.write("")
