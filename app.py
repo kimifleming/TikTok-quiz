@@ -3,7 +3,6 @@ import pandas as pd
 import os
 import random
 import plotly.express as px
-import streamlit.components.v1 as components
 
 # Files
 DATA_FILE = "submissions.csv"
@@ -37,27 +36,6 @@ def save_guess(video_owner, guessed_name, comment, guesser_name):
         df = new_guess
     df.to_csv(GUESS_FILE, index=False)
 
-# NEW: Improved JS injection for mobile
-def trigger_hotdog_confetti():
-    # This script pulls the confetti library and fires 🌭 emojis immediately
-    components.html(
-        """
-        <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
-        <script>
-            var scalar = 4;
-            var hotdog = confetti.shapeFromText({ text: '🌭', scalar });
-            confetti({
-                shapes: [hotdog],
-                particleCount: 100,
-                spread: 70,
-                origin: { y: 0.4 },
-                scalar: scalar
-            });
-        </script>
-        """,
-        height=0,
-    )
-
 # --- UI Setup ---
 st.set_page_config(page_title="The Glizzy Quiz", page_icon="🌭")
 current_state = get_state()
@@ -85,6 +63,10 @@ elif current_state == "quiz":
     
     if st.session_state.q_idx < len(df):
         row = df.iloc[st.session_state.q_idx]
+        st.write(f"**Video {st.session_state.q_idx + 1} of {len(df)}**")
+        
+        # Original Link Button for guaranteed playback
+        st.info("Watch the video, then return here to vote!")
         st.link_button("🔥 WATCH TIKTOK 🔥", row['Link'], use_container_width=True)
         
         st.divider()
@@ -116,14 +98,15 @@ elif current_state == "results":
             
             video_guesses = guesses_df[guesses_df['Owner'] == row['Name']] if not guesses_df.empty else pd.DataFrame()
             if not video_guesses.empty:
+                # Plotly Pie Chart
                 fig = px.pie(video_guesses['Guess'].value_counts().reset_index(), values='count', names='Guess', title="The Votes")
                 st.plotly_chart(fig, use_container_width=True)
                 for _, g in video_guesses.iterrows():
                     st.markdown(f"💬 **{g['Guesser']}**: {g['Comment']}")
             
-            # The button now triggers the confetti properly
+            # Using the built-in balloons for maximum mobile compatibility
             if st.button(f"✨ REVEAL GLIZZY ✨", key=f"rev_{i}", use_container_width=True):
-                trigger_hotdog_confetti()
+                st.balloons()
                 st.warning(f"THE OWNER WAS: **{row['Name']}**")
 
     if st.button("🧨 RESET GAME", use_container_width=True):
