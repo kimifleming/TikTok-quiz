@@ -61,10 +61,9 @@ def full_reset():
 # --- UI Setup ---
 st.set_page_config(page_title="GLIZZY GUESS WHO", page_icon="🌭", layout="centered")
 
-# TARGETED CSS: Only the Header and the Green Submit Button
+# TARGETED CSS
 st.markdown("""
     <style>
-    /* Header Bar Styling */
     .header-bar {
         background-color: #FF4B4B;
         color: white;
@@ -80,17 +79,13 @@ st.markdown("""
         text-transform: uppercase;
         text-shadow: -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 2px 2px 0 #000;
     }
-    
-    /* TARGETED GREEN SUBMIT BUTTON */
-    /* This only touches the button inside the form */
     div.stForm [data-testid="stFormSubmitButton"] button {
         background-color: #28a745 !important;
         color: white !important;
         font-weight: bold !important;
         border: 1px solid #1e7e34 !important;
+        width: 100%;
     }
-
-    /* Keep Quiz buttons large for mobile thumbs */
     .stButton > button {
         height: 3.5em;
         font-size: 18px !important;
@@ -120,23 +115,32 @@ def global_footer():
 
 # --- MAIN APP LOGIC ---
 current_state = get_state()
+submission_count = len(pd.read_csv(DATA_FILE)) if os.path.exists(DATA_FILE) else 0
 
 try:
     if current_state == "submitting":
-        st.subheader("Step 1: Submissions")
+        # Live Counter at the Top
+        st.metric("Total Glizzies Submitted", submission_count)
         
+        # Check if user already submitted this session
         if st.session_state.get('submitted', False):
-            st.success("✅ Submission received!")
-        
-        if os.path.exists(DATA_FILE):
-            st.metric("Total Entrants", len(pd.read_csv(DATA_FILE)))
+            # Form "pops away" and shows this instead
+            st.success("🎉 Thank you for submitting! Please wait for the quiz to begin.")
+            st.info("The host will start the game once everyone has uploaded.")
+        else:
+            st.subheader("Step 1: Submissions")
+            with st.form("sub_form", clear_on_submit=True):
+                name = st.text_input("Your Name", placeholder="Enter your name...")
+                file = st.file_uploader("Photo or Video", type=["mp4", "mov", "jpg", "jpeg", "png"])
+                if st.form_submit_button("SUBMIT"):
+                    if name and file:
+                        save_submission(name, file)
+                        st.session_state.submitted = True
+                        st.rerun()
+                    else:
+                        st.error("Please provide both a name and a file!")
 
-        # Form with standard layout but Green Color
-        with st.form("sub_form", clear_on_submit=True):
-            name = st.text_input("Your Name", placeholder="Enter your name...")
-            file = st.file_uploader("Photo or Video", type=["mp4", "mov", "jpg", "jpeg", "png"])
-            st.form_submit_button("SUBMIT")
-
+        # Admin Section (stays at bottom)
         st.write("")
         st.divider()
         st.caption("Admin Only: Start the game once everyone is done.")
@@ -144,7 +148,7 @@ try:
             st.session_state.confirm_quiz = True
         
         if st.session_state.get("confirm_quiz", False):
-            st.warning("⚠️ **Please make sure all entrants have submitted before continuing.**")
+            st.warning("⚠️ **Make sure all entrants are in!**")
             if st.button("✅ Yes, everyone is in", use_container_width=True):
                 set_state("quiz"); st.session_state.confirm_quiz = False; st.rerun()
 
