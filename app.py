@@ -25,7 +25,6 @@ def set_state(state):
     with open(STATE_FILE, "w") as f: f.write(state)
 
 def save_submission(name, uploaded_file):
-    # Determine file extension to handle photos vs videos
     ext = uploaded_file.name.split('.')[-1]
     file_path = os.path.join("media", f"{int(time.time())}_{name}.{ext}")
     with open(file_path, "wb") as f:
@@ -60,22 +59,39 @@ def full_reset():
     st.rerun()
 
 # --- UI Setup ---
-st.set_page_config(page_title="GLIZZY GUESS WHO", page_icon="🌭")
+st.set_page_config(page_title="GLIZZY GUESS WHO", page_icon="🌭", layout="centered")
 
-# Title Bar (Pinned to every page)
-st.markdown("<h1 style='text-align: center;'>🌭 GLIZZY GUESS WHO 🌭</h1>", unsafe_allow_html=True)
+# MOBILE CSS: Forced one-line title and large buttons
+st.markdown("""
+    <style>
+    .single-line-title {
+        white-space: nowrap;
+        text-align: center;
+        font-size: 22px;
+        font-weight: bold;
+        padding: 10px 0;
+        color: #FF4B4B;
+    }
+    /* Make buttons easier to tap on mobile */
+    .stButton > button {
+        height: 3em;
+        font-size: 18px !important;
+    }
+    </style>
+    <div class="single-line-title">🌭 GLIZZY GUESS WHO 🌭</div>
+    """, unsafe_allow_html=True)
 st.divider()
 
 # Global Reset Logic
 def global_footer():
     st.write("")
     st.divider()
-    with st.expander("🏠 Return to Home / Reset"):
+    with st.expander("🏠 Admin / Reset"):
         if st.button("Reset & Return to Home", type="secondary", use_container_width=True):
             st.session_state.wants_reset = True
     
     if st.session_state.get("wants_reset", False):
-        st.error("‼️ Reset everything? This deletes all current media.")
+        st.error("‼️ Reset everything?")
         rc1, rc2 = st.columns(2)
         if rc1.button("🔥 YES", key="g_reset_yes"): full_reset()
         if rc2.button("🚫 NO", key="g_reset_no"): 
@@ -89,14 +105,14 @@ try:
     if current_state == "submitting":
         st.subheader("Step 1: Submissions")
         if st.session_state.get('submitted', False):
-            st.success("✅ Thanks for submitting! Once all entrants are in, start the quiz below.")
+            st.success("✅ Thanks! If everyone is in, start the quiz below.")
         
         if os.path.exists(DATA_FILE):
-            st.metric("Total Submissions", len(pd.read_csv(DATA_FILE)))
+            st.metric("Total In", len(pd.read_csv(DATA_FILE)))
 
         with st.form("sub_form", clear_on_submit=True):
             name = st.text_input("Your Name")
-            file = st.file_uploader("Upload a Photo or Video", type=["mp4", "mov", "jpg", "jpeg", "png"])
+            file = st.file_uploader("Photo or Video", type=["mp4", "mov", "jpg", "jpeg", "png"])
             if st.form_submit_button("Submit"):
                 if name and file:
                     save_submission(name, file)
@@ -109,11 +125,8 @@ try:
         
         if st.session_state.get("confirm_quiz", False):
             st.warning("⚠️ **Please make sure all entrants have submitted before continuing.**")
-            c1, c2 = st.columns(2)
-            if c1.button("✅ Yes, everyone is in", key="q_yes"):
+            if st.button("✅ Yes, everyone is in", use_container_width=True):
                 set_state("quiz"); st.session_state.confirm_quiz = False; st.rerun()
-            if c2.button("❌ No, still waiting", key="q_no"):
-                st.session_state.confirm_quiz = False; st.rerun()
 
     elif current_state == "quiz":
         st.subheader("🎬 Who is this?")
@@ -124,18 +137,17 @@ try:
             row = df.iloc[st.session_state.q_idx]
             st.write(f"**Item {st.session_state.q_idx + 1} of {len(df)}**")
             
-            # Dynamic display based on file type
             if row['Ext'] in ['jpg', 'jpeg', 'png']:
-                st.image(row['Path'])
+                st.image(row['Path'], use_container_width=True)
             else:
                 st.video(row['Path'])
             
             guesser = st.text_input("Your Name", key="guesser_name")
-            comment = st.text_area("Why them?")
+            comment = st.text_area("Why?", placeholder="Funny comments only...")
+            
             names = sorted(df['Name'].unique().tolist())
-            cols = st.columns(2)
             for i, n in enumerate(names):
-                if cols[i%2].button(n, key=f"g_{i}", use_container_width=True):
+                if st.button(n, key=f"g_{i}", use_container_width=True):
                     if not guesser: st.error("Name required!")
                     else:
                         save_guess(row['Name'], n, comment, guesser)
@@ -151,23 +163,26 @@ try:
 
         for i, row in df.iterrows():
             with st.container(border=True):
-                st.subheader(f"Submission #{i+1}")
+                st.subheader(f"#{i+1}")
                 if row['Ext'] in ['jpg', 'jpeg', 'png']:
-                    st.image(row['Path'])
+                    st.image(row['Path'], use_container_width=True)
                 else:
                     st.video(row['Path'])
                 
                 v_guesses = guesses_df[guesses_df['Owner'] == row['Name']] if not guesses_df.empty else pd.DataFrame()
                 if not v_guesses.empty:
-                    fig = px.pie(v_guesses['Guess'].value_counts().reset_index(), values='count', names='Guess', title="Votes")
+                    fig = px.pie(v_guesses['Guess'].value_counts().reset_index(), values='count', names='Guess')
+                    fig.update_layout(margin=dict(t=0, b=0, l=0, r=0), height=250)
                     st.plotly_chart(fig, use_container_width=True)
+                    for _, g in v_guesses.iterrows():
+                        st.caption(f"💬 **{g['Guesser']}**: {g['Comment']}")
                 
                 if st.button(f"✨ REVEAL ✨", key=f"rev_{i}", use_container_width=True):
                     st.balloons(); st.warning(f"THE OWNER: {row['Name']}")
 
         if not guesses_df.empty:
             st.divider()
-            st.header("🏆 Leaderboard")
+            st.header("🏆 Scoreboard")
             guesses_df['correct'] = (guesses_df['Owner'] == guesses_df['Guess']) & (guesses_df['Guesser'] != guesses_df['Owner'])
             leaderboard = guesses_df.groupby('Guesser')['correct'].sum().reset_index()
             leaderboard = leaderboard.sort_values(by='correct', ascending=False)
