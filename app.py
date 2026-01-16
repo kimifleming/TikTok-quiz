@@ -19,7 +19,7 @@ def set_state(state):
     with open(STATE_FILE, "w") as f: f.write(state)
 
 def save_submission(name, link):
-    # Saves the link EXACTLY as pasted
+    # Saves the link EXACTLY as it was pasted by the user
     new_data = pd.DataFrame([[name, link]], columns=["Name", "Link"])
     if os.path.exists(DATA_FILE):
         df = pd.read_csv(DATA_FILE)
@@ -38,20 +38,24 @@ def save_guess(video_owner, guessed_name, comment, guesser_name):
         df = new_guess
     df.to_csv(GUESS_FILE, index=False)
 
-def trigger_glitter():
-    # JavaScript glitter rain effect
-    glitter_js = """
+def trigger_hotdog_confetti():
+    # JavaScript to trigger Hot Dog emoji confetti
+    hotdog_js = """
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
     <script>
+        var scalar = 3;
+        var hotdog = confetti.shapeFromText({ text: '🌭', scalar });
+
         confetti({
-            particleCount: 200,
+            shapes: [hotdog],
+            particleCount: 100,
             spread: 90,
             origin: { y: 0.1 },
-            colors: ['#FFD700', '#FF69B4', '#00E5FF', '#FFFFFF', '#7FFF00']
+            scalar
         });
     </script>
     """
-    components.html(glitter_js, height=0)
+    components.html(hotdog_js, height=0)
 
 # --- UI Setup ---
 st.set_page_config(page_title="The Glizzy Quiz", page_icon="🌭")
@@ -68,8 +72,9 @@ if current_state == "submitting":
         if st.form_submit_button("Submit Link"):
             if name and link:
                 save_submission(name, link)
-                st.success("Submission successful!")
+                st.success("Successfully added to the vault!")
     
+    st.divider()
     if st.button("🚀 CREATE THE QUIZ", type="primary", use_container_width=True):
         set_state("quiz"); st.rerun()
 
@@ -80,18 +85,15 @@ elif current_state == "quiz":
     
     if st.session_state.q_idx < len(df):
         row = df.iloc[st.session_state.q_idx]
-        
-        # Display Progress
         st.write(f"**Question {st.session_state.q_idx + 1} of {len(df)}**")
-        st.progress((st.session_state.q_idx + 1) / len(df))
         
-        # Direct Link Button
-        st.info("Tap the button to open the TikTok. Watch it, then return here to vote!")
+        # This button uses the RAW link to open the TikTok app or browser
+        st.info("Watch the video, then return here to vote!")
         st.link_button("🔥 WATCH TIKTOK 🔥", row['Link'], use_container_width=True)
         
         st.divider()
         guesser = st.text_input("Your Name", key="guesser_name")
-        comment = st.text_area("Your Comment", placeholder="Why do you think it's them?")
+        comment = st.text_area("Your Comment", placeholder="Tell us why...")
         
         names = sorted(df['Name'].unique().tolist())
         cols = st.columns(2)
@@ -102,34 +104,33 @@ elif current_state == "quiz":
                     save_guess(row['Name'], n, comment, guesser)
                     st.session_state.q_idx += 1; st.rerun()
     else:
-        st.success("You've completed the quiz!")
-        if st.button("📊 SHOW FINAL RESULTS", type="primary", use_container_width=True):
+        st.success("All videos watched!")
+        if st.button("📊 SHOW RESULTS", type="primary", use_container_width=True):
             set_state("results"); st.rerun()
 
 elif current_state == "results":
-    st.title("📊 The Big Reveal")
+    st.title("📊 Final Results")
     df = pd.read_csv(DATA_FILE)
     guesses_df = pd.read_csv(GUESS_FILE) if os.path.exists(GUESS_FILE) else pd.DataFrame()
 
     for i, row in df.iterrows():
         with st.container(border=True):
             st.subheader(f"Video #{i+1}")
-            st.link_button("📺 Re-watch Original Video", row['Link'])
+            st.link_button("📺 Re-watch Video", row['Link'])
             
             video_guesses = guesses_df[guesses_df['Owner'] == row['Name']] if not guesses_df.empty else pd.DataFrame()
             if not video_guesses.empty:
-                # Plotly Pie Chart
-                fig = px.pie(video_guesses['Guess'].value_counts().reset_index(), values='count', names='Guess', title="What we guessed")
+                # Plotly for the data viz
+                fig = px.pie(video_guesses['Guess'].value_counts().reset_index(), values='count', names='Guess', title="The Votes")
                 st.plotly_chart(fig, use_container_width=True)
-                
                 for _, g in video_guesses.iterrows():
                     st.markdown(f"💬 **{g['Guesser']}**: {g['Comment']}")
             
             if st.button(f"✨ REVEAL GLIZZY ✨", key=f"rev_{i}", use_container_width=True):
-                trigger_glitter()
+                trigger_hotdog_confetti() # New Hot Dog effect
                 st.warning(f"THE OWNER WAS: **{row['Name']}**")
 
-    if st.button("🧨 RESET EVERYTHING", use_container_width=True):
+    if st.button("🧨 RESET GAME", use_container_width=True):
         for f in [DATA_FILE, GUESS_FILE, STATE_FILE]:
             if os.path.exists(f): os.remove(f)
         st.session_state.clear(); st.rerun()
