@@ -3,7 +3,7 @@ import pandas as pd
 import os
 import random
 import plotly.express as px
-import time
+import streamlit.components.v1 as components
 
 # Files
 DATA_FILE = "submissions.csv"
@@ -37,15 +37,26 @@ def save_guess(video_owner, guessed_name, comment, guesser_name):
         df = new_guess
     df.to_csv(GUESS_FILE, index=False)
 
-# NEW: Python-based emoji rain that works on all mobile browsers
-def glizzy_rain():
-    placeholder = st.empty()
-    for _ in range(3): # Three waves of rain
-        rain_text = " ".join(["🌭" for _ in range(15)])
-        placeholder.markdown(f"<h1 style='text-align: center;'>{rain_text}</h1>", unsafe_allow_html=True)
-        time.sleep(0.3)
-        placeholder.empty()
-        time.sleep(0.1)
+# NEW: Improved JS injection for mobile
+def trigger_hotdog_confetti():
+    # This script pulls the confetti library and fires 🌭 emojis immediately
+    components.html(
+        """
+        <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
+        <script>
+            var scalar = 4;
+            var hotdog = confetti.shapeFromText({ text: '🌭', scalar });
+            confetti({
+                shapes: [hotdog],
+                particleCount: 100,
+                spread: 70,
+                origin: { y: 0.4 },
+                scalar: scalar
+            });
+        </script>
+        """,
+        height=0,
+    )
 
 # --- UI Setup ---
 st.set_page_config(page_title="The Glizzy Quiz", page_icon="🌭")
@@ -74,8 +85,6 @@ elif current_state == "quiz":
     
     if st.session_state.q_idx < len(df):
         row = df.iloc[st.session_state.q_idx]
-        st.write(f"**Video {st.session_state.q_idx + 1} of {len(df)}**")
-        
         st.link_button("🔥 WATCH TIKTOK 🔥", row['Link'], use_container_width=True)
         
         st.divider()
@@ -101,9 +110,6 @@ elif current_state == "results":
     guesses_df = pd.read_csv(GUESS_FILE) if os.path.exists(GUESS_FILE) else pd.DataFrame()
 
     for i, row in df.iterrows():
-        reveal_key = f"revealed_{i}"
-        if reveal_key not in st.session_state: st.session_state[reveal_key] = False
-
         with st.container(border=True):
             st.subheader(f"Video #{i+1}")
             st.link_button("📺 Re-watch Video", row['Link'])
@@ -115,11 +121,9 @@ elif current_state == "results":
                 for _, g in video_guesses.iterrows():
                     st.markdown(f"💬 **{g['Guesser']}**: {g['Comment']}")
             
+            # The button now triggers the confetti properly
             if st.button(f"✨ REVEAL GLIZZY ✨", key=f"rev_{i}", use_container_width=True):
-                st.session_state[reveal_key] = True
-
-            if st.session_state[reveal_key]:
-                glizzy_rain() # Python-based animation
+                trigger_hotdog_confetti()
                 st.warning(f"THE OWNER WAS: **{row['Name']}**")
 
     if st.button("🧨 RESET GAME", use_container_width=True):
