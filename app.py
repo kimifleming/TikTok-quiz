@@ -28,7 +28,9 @@ def set_state(state, seed=0):
 
 def full_reset():
     for f in [DATA_FILE, GUESS_FILE, STATE_FILE]:
-        if os.path.exists(f): os.remove(f)
+        if os.path.exists(f): 
+            try: os.remove(f)
+            except: pass
     if os.path.exists("media"):
         for f in os.listdir("media"):
             try: os.remove(os.path.join("media", f))
@@ -83,29 +85,11 @@ st.markdown("""
         background-color: #702963 !important; color: white !important;
         border: 2px solid #4B0082 !important;
     }
-    /* Style for the small reset button at bottom */
-    .reset-btn-container { margin-top: 50px; }
     </style>
     <div class="header-bar">
         <div class="header-title">🌭 GLIZZY GUESS WHO 🌭</div>
     </div>
     """, unsafe_allow_html=True)
-
-# --- Global Footer Logic ---
-def global_footer():
-    st.write("---")
-    if not st.session_state.get("confirm_reset_all", False):
-        if st.button("🗑️ Reset Game", key="main_reset_btn", type="secondary", use_container_width=False):
-            st.session_state.confirm_reset_all = True
-            st.rerun()
-    else:
-        st.error("‼️ **Reset everything for everyone?**")
-        c1, c2 = st.columns(2)
-        if c1.button("🔥 YES", use_container_width=True):
-            full_reset()
-        if c2.button("🚫 NO", use_container_width=True):
-            st.session_state.confirm_reset_all = False
-            st.rerun()
 
 # --- Main Flow ---
 current_state, shared_seed = get_state()
@@ -207,4 +191,20 @@ try:
 except Exception as e:
     st.error(f"Error: {e}")
 
-global_footer()
+# --- UNIVERSAL FOOTER RESET ---
+st.write("")
+st.write("")
+st.write("")
+st.write("---")
+if not st.session_state.get("confirm_reset_all", False):
+    if st.button("🗑️ Reset Entire Game", key="footer_reset_btn"):
+        st.session_state.confirm_reset_all = True
+        st.rerun()
+else:
+    st.error("‼️ Reset everything for everyone?")
+    c1, c2 = st.columns(2)
+    if c1.button("🔥 YES", key="final_yes_reset"):
+        full_reset()
+    if c2.button("🚫 NO", key="final_no_reset"):
+        st.session_state.confirm_reset_all = False
+        st.rerun()
