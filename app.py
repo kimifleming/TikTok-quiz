@@ -10,7 +10,6 @@ DATA_FILE = "submissions.csv"
 GUESS_FILE = "guesses.csv"
 STATE_FILE = "game_state.txt"
 
-# Ensure media directory exists
 if not os.path.exists("media"):
     os.makedirs("media")
 
@@ -19,8 +18,7 @@ def get_state():
     if not os.path.exists(STATE_FILE): return "submitting"
     try:
         with open(STATE_FILE, "r") as f: return f.read().strip()
-    except:
-        return "submitting"
+    except: return "submitting"
 
 def set_state(state):
     with open(STATE_FILE, "w") as f: f.write(state)
@@ -30,23 +28,22 @@ def save_submission(name, uploaded_file):
     file_path = os.path.join("media", f"{int(time.time())}_{name}.{ext}")
     with open(file_path, "wb") as f:
         f.write(uploaded_file.getbuffer())
-    
     new_data = pd.DataFrame([[name, file_path, ext.lower()]], columns=["Name", "Path", "Ext"])
     if os.path.exists(DATA_FILE):
         df = pd.read_csv(DATA_FILE)
         df = pd.concat([df, new_data], ignore_index=True)
-    else:
-        df = new_data
+    else: df = new_data
     df.to_csv(DATA_FILE, index=False)
 
 def save_guess(video_owner, guessed_name, comment, guesser_name):
-    new_guess = pd.DataFrame([[video_owner, guessed_name, comment, guesser_name]], 
+    # Ensure comment isn't just whitespace or 'nan'
+    clean_comment = "" if pd.isna(comment) or str(comment).strip().lower() == "nan" else str(comment).strip()
+    new_guess = pd.DataFrame([[video_owner, guessed_name, clean_comment, guesser_name]], 
                              columns=["Owner", "Guess", "Comment", "Guesser"])
     if os.path.exists(GUESS_FILE):
         df = pd.read_csv(GUESS_FILE)
         df = pd.concat([df, new_guess], ignore_index=True)
-    else:
-        df = new_guess
+    else: df = new_guess
     df.to_csv(GUESS_FILE, index=False)
 
 def full_reset():
@@ -79,11 +76,16 @@ st.markdown("""
         text-transform: uppercase;
         text-shadow: -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 2px 2px 0 #000;
     }
+    /* Green highlight for the selected answer button */
+    .stButton > button:active, .stButton > button:focus {
+        background-color: #28a745 !important;
+        color: white !important;
+        border: 2px solid #1e7e34 !important;
+    }
     div.stForm [data-testid="stFormSubmitButton"] button {
         background-color: #28a745 !important;
         color: white !important;
         font-weight: bold !important;
-        border: 1px solid #1e7e34 !important;
         width: 100%;
     }
     .stButton > button {
@@ -97,21 +99,7 @@ st.markdown("""
     </div>
     """, unsafe_allow_html=True)
 
-def global_footer():
-    st.write("")
-    st.divider()
-    with st.expander("🛠️ Admin / Reset"):
-        if st.button("Reset & Return to Home", type="secondary", use_container_width=True):
-            st.session_state.wants_reset = True
-    if st.session_state.get("wants_reset", False):
-        st.error("‼️ Reset everything?")
-        rc1, rc2 = st.columns(2)
-        if rc1.button("🔥 YES", key="g_reset_yes"): full_reset()
-        if rc2.button("🚫 NO", key="g_reset_no"): 
-            st.session_state.wants_reset = False
-            st.rerun()
-
-# --- MAIN APP LOGIC ---
+# --- Logic ---
 current_state = get_state()
 submission_count = len(pd.read_csv(DATA_FILE)) if os.path.exists(DATA_FILE) else 0
 
@@ -120,39 +108,30 @@ try:
         st.metric("Total Glizzies Submitted", submission_count)
         if st.session_state.get('submitted', False):
             st.success("🎉 Thank you for submitting! Please wait for the quiz to begin.")
-            st.info("The host will start the game once everyone has uploaded.")
         else:
-            st.subheader("Step 1: Submissions")
             with st.form("sub_form", clear_on_submit=True):
-                name = st.text_input("Your Name", placeholder="Enter your name...")
+                name = st.text_input("Your Name")
                 file = st.file_uploader("Photo or Video", type=["mp4", "mov", "jpg", "jpeg", "png"])
                 if st.form_submit_button("SUBMIT"):
                     if name and file:
                         save_submission(name, file)
                         st.session_state.submitted = True
                         st.rerun()
-                    else: st.error("Please provide both a name and a file!")
 
         st.divider()
-        st.caption("Admin Only: Start the game once everyone is done.")
         if st.button("🚀 CREATE THE QUIZ", type="primary", use_container_width=True):
             st.session_state.confirm_quiz = True
         if st.session_state.get("confirm_quiz", False):
-            st.warning("⚠️ **Make sure all entrants are in!**")
             if st.button("✅ Yes, everyone is in", use_container_width=True):
                 set_state("quiz"); st.session_state.confirm_quiz = False; st.rerun()
 
     elif current_state == "quiz":
-        st.subheader("🎬 Who is this?")
-        
-        # Load and Shuffle Submissions
         if 'shuffled_df' not in st.session_state:
             df = pd.read_csv(DATA_FILE)
             st.session_state.shuffled_df = df.sample(frac=1).reset_index(drop=True)
             st.session_state.q_idx = 0
         
         df = st.session_state.shuffled_df
-        
         if st.session_state.q_idx < len(df):
             row = df.iloc[st.session_state.q_idx]
             st.write(f"**Item {st.session_state.q_idx + 1} of {len(df)}**")
@@ -162,31 +141,38 @@ try:
             else:
                 st.video(row['Path'])
             
-            # Persistent Guesser Name
+            # 1. NAME CHOICES IMMEDIATELY BELOW MEDIA
+            st.write("### **Guess who it is:**")
+            names = sorted(pd.read_csv(DATA_FILE)['Name'].unique().tolist())
+            
+            # Persistent Guesser hidden or small at the top
             guesser = st.text_input("Your Name", 
                                    value=st.session_state.get('persistent_guesser', ''),
-                                   key="guesser_input",
-                                   placeholder="Who is playing?")
-            
-            comment = st.text_area("Why?", placeholder="Give us the tea...", key=f"comm_{st.session_state.q_idx}")
-            
-            names = sorted(pd.read_csv(DATA_FILE)['Name'].unique().tolist())
+                                   key="guesser_input", placeholder="Enter your name once...")
+
+            # Name Selection Buttons
             for i, n in enumerate(names):
                 if st.button(n, key=f"g_{i}", use_container_width=True):
-                    if not guesser: 
-                        st.error("Enter your name first!")
+                    if not guesser:
+                        st.error("Please enter your name above first!")
                     else:
-                        st.session_state.persistent_guesser = guesser # Remember name
-                        save_guess(row['Name'], n, comment, guesser)
+                        st.session_state.persistent_guesser = guesser
+                        # Pull comment from the state since we moved it below
+                        comm_val = st.session_state.get(f"temp_comm_{st.session_state.q_idx}", "")
+                        save_guess(row['Name'], n, comm_val, guesser)
                         st.session_state.q_idx += 1
                         st.rerun()
+
+            # 2. COMMENTS MOVED BELOW BUTTONS
+            st.text_area("Optional Comment:", 
+                        key=f"temp_comm_{st.session_state.q_idx}", 
+                        placeholder="Why this person?")
         else:
             if st.button("📊 SHOW RESULTS", type="primary", use_container_width=True):
                 set_state("results"); st.rerun()
 
     elif current_state == "results":
         st.subheader("📊 Final Results")
-        # Use the shuffled order for results too
         df = st.session_state.shuffled_df
         guesses_df = pd.read_csv(GUESS_FILE) if os.path.exists(GUESS_FILE) else pd.DataFrame()
 
@@ -204,10 +190,11 @@ try:
                     fig.update_layout(margin=dict(t=0, b=0, l=0, r=0), height=250)
                     st.plotly_chart(fig, use_container_width=True)
                     
-                    # Filter out blank comments
-                    valid_comments = v_guesses[v_guesses['Comment'].str.strip() != ""]
-                    for _, g in valid_comments.iterrows():
-                        st.caption(f"💬 **{g['Guesser']}**: {g['Comment']}")
+                    # NAN REMOVAL: Check if comment exists and isn't "nan"
+                    for _, g in v_guesses.iterrows():
+                        c = str(g['Comment']).strip()
+                        if c and c.lower() != "nan":
+                            st.caption(f"💬 **{g['Guesser']}**: {c}")
                 
                 if st.button(f"✨ REVEAL OWNER ✨", key=f"rev_{i}", use_container_width=True):
                     st.balloons(); st.warning(f"THE OWNER: {row['Name']}")
@@ -223,4 +210,5 @@ try:
 except Exception as e:
     st.error(f"App Error: {e}")
 
-global_footer()
+with st.expander("🛠️ Admin"):
+    if st.button("Reset Everything"): full_reset()
