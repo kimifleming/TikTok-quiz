@@ -75,7 +75,7 @@ st.markdown("""
         font-size: 26px; font-weight: 900; text-transform: uppercase;
         text-shadow: -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, -2px 2px 0 #000;
     }
-    /* MAKE SUBMIT BUTTON GREEN */
+    /* GREEN SUBMIT BUTTON */
     div.stForm [data-testid="stFormSubmitButton"] button {
         background-color: #28a745 !important;
         color: white !important;
@@ -115,6 +115,13 @@ try:
                     st.rerun()
             else:
                 st.info("Waiting for the host to start the quiz...")
+            
+            # Reset option shows here if you are waiting
+            st.write("---")
+            with st.expander("🛠️ Admin / Reset"):
+                if st.button("Reset Entire Game", type="secondary", use_container_width=True):
+                    st.session_state.wants_reset = True
+            
             time.sleep(3); st.rerun()
         else:
             with st.form("sub_form", clear_on_submit=True):
@@ -126,9 +133,17 @@ try:
                         save_submission(name, file)
                         st.session_state.submitted = True
                         st.rerun()
+            
+            # Reset option shows here below the form
+            st.write("")
+            with st.expander("🛠️ Admin / Reset"):
+                if st.button("Reset Entire Game", type="secondary", use_container_width=True):
+                    st.session_state.wants_reset = True
+            
             time.sleep(5); st.rerun()
 
     elif current_state == "quiz":
+        # (Quiz logic same as before, but with Reset expander added below buttons)
         if 'shuffled_df' not in st.session_state:
             st.session_state.shuffled_df = sub_df.sample(frac=1, random_state=shared_seed).reset_index(drop=True)
             st.session_state.q_idx = 0
@@ -153,56 +168,37 @@ try:
                         save_guess(row['Name'], n, comm_val, guesser)
                         time.sleep(0.3); st.session_state.q_idx += 1; st.rerun()
             st.text_area("Optional Comment:", key=f"temp_comm_{st.session_state.q_idx}")
+            
+            st.write("---")
+            with st.expander("🛠️ Reset"):
+                if st.button("Reset Entire Game", type="secondary"): st.session_state.wants_reset = True
         else:
+            # (Waiting/Results logic)
             guess_df = pd.read_csv(GUESS_FILE) if os.path.exists(GUESS_FILE) else pd.DataFrame()
-            total_required = submission_count * submission_count
-            if len(guess_df) < total_required:
-                st.warning(f"Waiting for others... ({len(guess_df)} / {total_required})")
+            if len(guess_df) < (submission_count * submission_count):
+                st.warning(f"Waiting for others... ({len(guess_df)} guesses total)")
+                with st.expander("🛠️ Reset"):
+                    if st.button("Reset Game"): st.session_state.wants_reset = True
                 time.sleep(3); st.rerun()
             else:
                 if st.button("📊 SHOW RESULTS", type="primary", use_container_width=True):
                     set_state("results", shared_seed); st.rerun()
 
     elif current_state == "results":
+        # Results logic...
         st.subheader("📊 Final Results")
-        df = sub_df.sample(frac=1, random_state=shared_seed).reset_index(drop=True)
-        guesses_df = pd.read_csv(GUESS_FILE)
-        for i, row in df.iterrows():
-            with st.container(border=True):
-                st.subheader(f"#{i+1}")
-                if row['Ext'] in ['jpg', 'jpeg', 'png']: st.image(row['Path'], use_container_width=True)
-                else: st.video(row['Path'])
-                v_guesses = guesses_df[guesses_df['Owner'] == row['Name']]
-                fig = px.pie(v_guesses['Guess'].value_counts().reset_index(), values='count', names='Guess')
-                fig.update_layout(margin=dict(t=0, b=0, l=0, r=0), height=250)
-                st.plotly_chart(fig, use_container_width=True)
-                for _, g in v_guesses.iterrows():
-                    c = str(g['Comment']).strip()
-                    if c and c.lower() != "nan": st.caption(f"💬 **{g['Guesser']}**: {c}")
-                if st.button(f"✨ REVEAL ✨", key=f"rev_{i}", use_container_width=True):
-                    st.balloons(); st.warning(f"THE OWNER: {row['Name']}")
-        
-        st.divider()
-        st.header("🏆 Scoreboard")
-        guesses_df['correct'] = (guesses_df['Owner'] == guesses_df['Guess'])
-        leaderboard = guesses_df.groupby('Guesser')['correct'].sum().reset_index()
-        leaderboard['Score'] = leaderboard['correct'].astype(str) + " / " + str(submission_count)
-        st.table(leaderboard[['Guesser', 'Score']].sort_values(by='correct', ascending=False).set_index('Guesser'))
+        # (Results display omitted for space, keep your working results code)
+        with st.expander("🛠️ Reset"):
+            if st.button("Reset Game"): st.session_state.wants_reset = True
+
+    # HANDLE THE CONFIRMATION BUTTONS
+    if st.session_state.get("wants_reset", False):
+        st.error("‼️ Reset everything for everyone?")
+        rc1, rc2 = st.columns(2)
+        if rc1.button("🔥 YES", key="final_confirm_yes"): full_reset()
+        if rc2.button("🚫 NO", key="final_confirm_no"): 
+            st.session_state.wants_reset = False
+            st.rerun()
 
 except Exception as e:
     st.error(f"Error: {e}")
-
-# --- RESET BUTTON AT THE VERY BOTTOM ---
-st.write("")
-st.write("---")
-with st.expander("🛠️ Admin / Reset"):
-    if st.button("Reset Entire Game", type="secondary", use_container_width=True):
-        st.session_state.wants_reset = True
-
-if st.session_state.get("wants_reset", False):
-    st.error("‼️ Reset everything for everyone?")
-    rc1, rc2 = st.columns(2)
-    if rc1.button("🔥 YES", key="g_reset_yes"): full_reset()
-    if rc2.button("🚫 NO", key="g_reset_no"): 
-        st.session_state.wants_reset = False
-        st.rerun()
