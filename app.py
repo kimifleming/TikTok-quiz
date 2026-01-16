@@ -64,14 +64,8 @@ st.markdown("""
     <style>
     .header-bar { background-color: #FF4B4B; color: white; text-align: center; padding: 10px 0px; border-bottom: 5px solid #9d0208; margin: -10px -20px 20px -20px; width: calc(100% + 40px); }
     .header-title { font-size: 26px; font-weight: 900; text-transform: uppercase; text-shadow: -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, -2px 2px 0 #000; }
-    
-    /* GREEN SUBMIT BUTTON */
     div.stForm [data-testid="stFormSubmitButton"] button { background-color: #28a745 !important; color: white !important; font-weight: bold !important; width: 100%; border: none; }
-    
-    /* CLEANER BUTTONS (Removed Purple Flash) */
     .stButton > button { height: 3.5em; font-size: 18px !important; border-radius: 10px; transition: none !important; }
-    
-    /* Selection Highlight (Red) */
     div[data-testid="stButton"] button[kind="primary"] { background-color: #FF4B4B !important; color: white !important; border: 2px solid #9d0208 !important; }
     </style>
     <div class="header-bar"><div class="header-title">🌭 GLIZZY GUESS WHO 🌭</div></div>
@@ -84,6 +78,15 @@ submission_count = len(sub_df)
 try:
     if current_state == "submitting":
         st.metric("Total Glizzies Submitted", submission_count)
+        
+        # DISPLAY LIST OF SUBMITTERS WITH HOST DENOTED
+        if submission_count > 0:
+            names_display = []
+            for i, name in enumerate(sub_df['Name']):
+                suffix = " 👑 (Host)" if i == 0 else ""
+                names_display.append(f"**{name}**{suffix}")
+            st.write(f"**Players in lobby:** {', '.join(names_display)}")
+
         if st.session_state.get('submitted', False):
             st.success("🎉 Submission received!")
             is_host = (sub_df.iloc[0]['Name'] == st.session_state.get('my_name', ''))
@@ -122,7 +125,6 @@ try:
                 names = sorted(sub_df['Name'].unique().tolist())
                 cols = st.columns(2)
                 for i, n in enumerate(names):
-                    # Using 'primary' for the selected one to color it red via CSS
                     is_selected = st.session_state.temp_guesses.get(idx, {}).get('Guess') == n
                     btn_type = "primary" if is_selected else "secondary"
                     if cols[i % 2].button(n, key=f"q{idx}_{n}", use_container_width=True, type=btn_type):
@@ -142,10 +144,24 @@ try:
     elif current_state == "sync":
         st.header("⏳ Waiting for others...")
         guess_df = pd.read_csv(GUESS_FILE) if os.path.exists(GUESS_FILE) else pd.DataFrame()
-        finished_players = guess_df['Guesser'].nunique() if not guess_df.empty else 0
-        st.metric("Players Finished", f"{finished_players} / {submission_count}")
-        st.progress(finished_players / submission_count)
-        if finished_players >= submission_count:
+        
+        all_players = sub_df['Name'].unique().tolist()
+        voted_players = guess_df['Guesser'].unique().tolist() if not guess_df.empty else []
+        still_waiting = [p for p in all_players if p not in voted_players]
+        
+        st.metric("Players Finished", f"{len(voted_players)} / {submission_count}")
+        st.progress(len(voted_players) / submission_count)
+        
+        # LIST WHO WE ARE WAITING FOR
+        col1, col2 = st.columns(2)
+        with col1:
+            st.write("✅ **Finished:**")
+            for p in voted_players: st.write(f"- {p}")
+        with col2:
+            st.write("🏃 **Still Guessing:**")
+            for p in still_waiting: st.write(f"- {p}")
+
+        if len(voted_players) >= submission_count:
             st.success("Everyone is done! Loading results..."); time.sleep(2)
             set_state("results", shared_seed); st.rerun()
         else: time.sleep(5); st.rerun()
