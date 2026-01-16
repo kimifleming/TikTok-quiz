@@ -61,42 +61,63 @@ def full_reset():
 # --- UI Setup ---
 st.set_page_config(page_title="GLIZZY GUESS WHO", page_icon="🌭", layout="centered")
 
-# MOBILE CSS: Header Bar, Big Green Button, and Bordered Font
+# CUSTOM CSS FOR MOBILE POLISH
 st.markdown("""
     <style>
-    /* Header Bar styling */
+    /* Header Bar */
     .header-bar {
         background-color: #FF4B4B;
         color: white;
         text-align: center;
-        padding: 5px 0px;
-        border-bottom: 4px solid #9d0208;
-        margin-bottom: 20px;
+        padding: 8px 0px;
+        border-bottom: 5px solid #9d0208;
+        margin-bottom: 15px;
         width: 100%;
-        border-radius: 0px 0px 10px 10px;
+        border-radius: 0px 0px 15px 15px;
     }
     .header-title {
         white-space: nowrap;
-        font-size: 32px;
+        font-size: 28px;
         font-weight: 900;
         text-transform: uppercase;
-        /* Bordered text effect */
         text-shadow: -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 2px 2px 0 #000;
     }
-    /* Green Submit Button */
+
+    /* Remove the ugly default form border */
+    [data-testid="stForm"] {
+        border: none !important;
+        padding: 0px !important;
+    }
+
+    /* Center and Style the Green Submit Button */
+    div.stForm [data-testid="stFormSubmitButton"] {
+        display: flex;
+        justify-content: center;
+        margin-top: 20px;
+    }
+
     div.stForm [data-testid="stFormSubmitButton"] button {
         background-color: #28a745 !important;
         color: white !important;
-        width: 100% !important;
-        height: 4em !important;
-        font-size: 24px !important;
+        width: 80% !important; /* Not full width, looks cleaner centered */
+        height: 3.5em !important;
+        font-size: 22px !important;
         font-weight: bold !important;
-        border-radius: 15px !important;
-        border: 2px solid #1e7e34 !important;
+        border-radius: 50px !important; /* Rounded pill shape */
+        border: 3px solid #1e7e34 !important;
+        box-shadow: 0px 4px 10px rgba(0,0,0,0.3);
     }
+
+    /* Make text inputs and file uploaders look cleaner */
+    .stTextInput input, .stTextArea textarea {
+        border-radius: 12px !important;
+    }
+
+    /* Style for Vote Buttons in Quiz */
     .stButton > button {
-        height: 3em;
-        font-size: 18px !important;
+        border-radius: 12px !important;
+        height: 3.2em;
+        font-size: 16px !important;
     }
     </style>
     <div class="header-bar">
@@ -108,7 +129,7 @@ st.markdown("""
 def global_footer():
     st.write("")
     st.divider()
-    with st.expander("🏠 Admin / Reset"):
+    with st.expander("🛠️ Admin / Reset"):
         if st.button("Reset & Return to Home", type="secondary", use_container_width=True):
             st.session_state.wants_reset = True
     
@@ -133,12 +154,12 @@ try:
         if os.path.exists(DATA_FILE):
             st.metric("Total Entrants", len(pd.read_csv(DATA_FILE)))
 
+        # Clean Submission Form
         with st.form("sub_form", clear_on_submit=True):
-            name = st.text_input("Your Name")
+            name = st.text_input("Your Name", placeholder="Enter your name...")
             file = st.file_uploader("Photo or Video", type=["mp4", "mov", "jpg", "jpeg", "png"])
             st.form_submit_button("SUBMIT")
 
-        st.write("")
         st.write("")
         st.divider()
         st.caption("Admin Only: Start the game once everyone is done.")
@@ -165,7 +186,7 @@ try:
                 st.video(row['Path'])
             
             guesser = st.text_input("Your Name", key="guesser_name")
-            comment = st.text_area("Why?", placeholder="Funny comments only...")
+            comment = st.text_area("Why?", placeholder="Give us the tea...")
             
             names = sorted(df['Name'].unique().tolist())
             for i, n in enumerate(names):
@@ -199,7 +220,7 @@ try:
                     for _, g in v_guesses.iterrows():
                         st.caption(f"💬 **{g['Guesser']}**: {g['Comment']}")
                 
-                if st.button(f"✨ REVEAL ✨", key=f"rev_{i}", use_container_width=True):
+                if st.button(f"✨ REVEAL OWNER ✨", key=f"rev_{i}", use_container_width=True):
                     st.balloons(); st.warning(f"THE OWNER: {row['Name']}")
 
         if not guesses_df.empty:
