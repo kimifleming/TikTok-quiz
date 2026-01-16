@@ -61,28 +61,50 @@ def full_reset():
 # --- UI Setup ---
 st.set_page_config(page_title="GLIZZY GUESS WHO", page_icon="🌭", layout="centered")
 
-# MOBILE CSS: Forced one-line title and large buttons
+# MOBILE CSS: Header Bar, Big Green Button, and Bordered Font
 st.markdown("""
     <style>
-    .single-line-title {
-        white-space: nowrap;
+    /* Header Bar styling */
+    .header-bar {
+        background-color: #FF4B4B;
+        color: white;
         text-align: center;
-        font-size: 22px;
-        font-weight: bold;
-        padding: 10px 0;
-        color: #FF4B4B;
+        padding: 5px 0px;
+        border-bottom: 4px solid #9d0208;
+        margin-bottom: 20px;
+        width: 100%;
+        border-radius: 0px 0px 10px 10px;
     }
-    /* Make buttons easier to tap on mobile */
+    .header-title {
+        white-space: nowrap;
+        font-size: 32px;
+        font-weight: 900;
+        text-transform: uppercase;
+        /* Bordered text effect */
+        text-shadow: -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 2px 2px 0 #000;
+    }
+    /* Green Submit Button */
+    div.stForm [data-testid="stFormSubmitButton"] button {
+        background-color: #28a745 !important;
+        color: white !important;
+        width: 100% !important;
+        height: 4em !important;
+        font-size: 24px !important;
+        font-weight: bold !important;
+        border-radius: 15px !important;
+        border: 2px solid #1e7e34 !important;
+    }
     .stButton > button {
         height: 3em;
         font-size: 18px !important;
     }
     </style>
-    <div class="single-line-title">🌭 GLIZZY GUESS WHO 🌭</div>
+    <div class="header-bar">
+        <div class="header-title">🌭 GLIZZY GUESS WHO 🌭</div>
+    </div>
     """, unsafe_allow_html=True)
-st.divider()
 
-# Global Reset Logic
+# --- Global Footer Reset ---
 def global_footer():
     st.write("")
     st.divider()
@@ -104,22 +126,22 @@ current_state = get_state()
 try:
     if current_state == "submitting":
         st.subheader("Step 1: Submissions")
+        
         if st.session_state.get('submitted', False):
-            st.success("✅ Thanks! If everyone is in, start the quiz below.")
+            st.success("✅ Submission received!")
         
         if os.path.exists(DATA_FILE):
-            st.metric("Total In", len(pd.read_csv(DATA_FILE)))
+            st.metric("Total Entrants", len(pd.read_csv(DATA_FILE)))
 
         with st.form("sub_form", clear_on_submit=True):
             name = st.text_input("Your Name")
             file = st.file_uploader("Photo or Video", type=["mp4", "mov", "jpg", "jpeg", "png"])
-            if st.form_submit_button("Submit"):
-                if name and file:
-                    save_submission(name, file)
-                    st.session_state.submitted = True
-                    st.rerun()
-        
+            st.form_submit_button("SUBMIT")
+
+        st.write("")
+        st.write("")
         st.divider()
+        st.caption("Admin Only: Start the game once everyone is done.")
         if st.button("🚀 CREATE THE QUIZ", type="primary", use_container_width=True):
             st.session_state.confirm_quiz = True
         
