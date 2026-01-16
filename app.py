@@ -79,7 +79,6 @@ try:
     if current_state == "submitting":
         st.metric("Total Glizzies Submitted", submission_count)
         
-        # DISPLAY LIST OF SUBMITTERS WITH HOST DENOTED
         if submission_count > 0:
             names_display = []
             for i, name in enumerate(sub_df['Name']):
@@ -100,7 +99,8 @@ try:
         else:
             with st.form("sub_form", clear_on_submit=True):
                 name = st.text_input("Your Name")
-                file = st.file_uploader("Upload Glizzy", type=["mp4", "mov", "jpg", "jpeg", "png"])
+                # Updated Label Here
+                file = st.file_uploader("Upload", type=["mp4", "mov", "jpg", "jpeg", "png"])
                 if st.form_submit_button("SUBMIT"):
                     if name and file:
                         st.session_state.my_name = name
@@ -144,7 +144,6 @@ try:
     elif current_state == "sync":
         st.header("⏳ Waiting for others...")
         guess_df = pd.read_csv(GUESS_FILE) if os.path.exists(GUESS_FILE) else pd.DataFrame()
-        
         all_players = sub_df['Name'].unique().tolist()
         voted_players = guess_df['Guesser'].unique().tolist() if not guess_df.empty else []
         still_waiting = [p for p in all_players if p not in voted_players]
@@ -152,7 +151,6 @@ try:
         st.metric("Players Finished", f"{len(voted_players)} / {submission_count}")
         st.progress(len(voted_players) / submission_count)
         
-        # LIST WHO WE ARE WAITING FOR
         col1, col2 = st.columns(2)
         with col1:
             st.write("✅ **Finished:**")
