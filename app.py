@@ -28,9 +28,7 @@ def set_state(state, seed=0):
 
 def full_reset():
     for f in [DATA_FILE, GUESS_FILE, STATE_FILE]:
-        if os.path.exists(f): 
-            try: os.remove(f)
-            except: pass
+        if os.path.exists(f): os.remove(f)
     if os.path.exists("media"):
         for f in os.listdir("media"):
             try: os.remove(os.path.join("media", f))
@@ -99,14 +97,12 @@ submission_count = len(sub_df)
 try:
     if current_state == "submitting":
         st.metric("Total Glizzies Submitted", submission_count)
-        
         if submission_count > 0:
             st.write(f"**Players ready:** {', '.join(sub_df['Name'].tolist())}")
 
         if st.session_state.get('submitted', False):
             st.success("🎉 Submission received!")
             is_host = (sub_df.iloc[0]['Name'] == st.session_state.get('my_name', ''))
-            
             if is_host:
                 st.info("👑 You are the Host. Wait for everyone, then start.")
                 if st.button("🚀 CREATE THE QUIZ", type="primary", use_container_width=True):
@@ -191,20 +187,16 @@ try:
 except Exception as e:
     st.error(f"Error: {e}")
 
-# --- UNIVERSAL FOOTER RESET ---
+# --- RESTORED RESET LOGIC FROM EARLIER VERSION ---
 st.write("")
-st.write("")
-st.write("")
-st.write("---")
-if not st.session_state.get("confirm_reset_all", False):
-    if st.button("🗑️ Reset Entire Game", key="footer_reset_btn"):
-        st.session_state.confirm_reset_all = True
-        st.rerun()
-else:
-    st.error("‼️ Reset everything for everyone?")
-    c1, c2 = st.columns(2)
-    if c1.button("🔥 YES", key="final_yes_reset"):
-        full_reset()
-    if c2.button("🚫 NO", key="final_no_reset"):
-        st.session_state.confirm_reset_all = False
+st.divider()
+with st.expander("🛠️ Admin / Reset"):
+    if st.button("Reset & Return to Home", type="secondary", use_container_width=True):
+        st.session_state.wants_reset = True
+if st.session_state.get("wants_reset", False):
+    st.error("‼️ Reset everything?")
+    rc1, rc2 = st.columns(2)
+    if rc1.button("🔥 YES", key="g_reset_yes"): full_reset()
+    if rc2.button("🚫 NO", key="g_reset_no"): 
+        st.session_state.wants_reset = False
         st.rerun()
