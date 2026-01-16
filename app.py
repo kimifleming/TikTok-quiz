@@ -19,7 +19,6 @@ def set_state(state):
     with open(STATE_FILE, "w") as f: f.write(state)
 
 def save_submission(name, link):
-    # Saves the link EXACTLY as it was pasted by the user
     new_data = pd.DataFrame([[name, link]], columns=["Name", "Link"])
     if os.path.exists(DATA_FILE):
         df = pd.read_csv(DATA_FILE)
@@ -38,22 +37,40 @@ def save_guess(video_owner, guessed_name, comment, guesser_name):
         df = new_guess
     df.to_csv(GUESS_FILE, index=False)
 
-def trigger_hotdog_confetti():
-    # JavaScript to trigger Hot Dog emoji confetti
-    hotdog_js = """
-    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
-    <script>
-        var scalar = 3;
-        var hotdog = confetti.shapeFromText({ text: '🌭', scalar });
+# This function now uses a more reliable "Key" system to fire the JS
+def trigger_hotdog_confetti(key):
+    hotdog_js = f"""
+    <div id="confetti-trigger-{key}">
+        <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
+        <script>
+            var end = Date.now() + (2 * 1000);
+            var scalar = 3.5;
+            var hotdog = confetti.shapeFromText({{ text: '🌭', scalar: scalar }});
 
-        confetti({
-            shapes: [hotdog],
-            particleCount: 100,
-            spread: 90,
-            origin: { y: 0.1 },
-            scalar
-        });
-    </script>
+            (function frame() {{
+              confetti({{
+                particleCount: 40,
+                angle: 60,
+                spread: 55,
+                origin: {{ x: 0, y: 0.2 }},
+                shapes: [hotdog],
+                scalar: scalar
+              }});
+              confetti({{
+                particleCount: 40,
+                angle: 120,
+                spread: 55,
+                origin: {{ x: 1, y: 0.2 }},
+                shapes: [hotdog],
+                scalar: scalar
+              }});
+
+              if (Date.now() < end) {{
+                requestAnimationFrame(frame);
+              }}
+            }}());
+        </script>
+    </div>
     """
     components.html(hotdog_js, height=0)
 
@@ -72,28 +89,27 @@ if current_state == "submitting":
         if st.form_submit_button("Submit Link"):
             if name and link:
                 save_submission(name, link)
-                st.success("Successfully added to the vault!")
+                st.success("Successfully added!")
     
     st.divider()
     if st.button("🚀 CREATE THE QUIZ", type="primary", use_container_width=True):
         set_state("quiz"); st.rerun()
 
 elif current_state == "quiz":
-    st.title("🎬 Who Posted This?")
+    st.title("🎬 Guess the Creator")
     df = pd.read_csv(DATA_FILE)
     if 'q_idx' not in st.session_state: st.session_state.q_idx = 0
     
     if st.session_state.q_idx < len(df):
         row = df.iloc[st.session_state.q_idx]
-        st.write(f"**Question {st.session_state.q_idx + 1} of {len(df)}**")
+        st.write(f"**Video {st.session_state.q_idx + 1} of {len(df)}**")
         
-        # This button uses the RAW link to open the TikTok app or browser
         st.info("Watch the video, then return here to vote!")
         st.link_button("🔥 WATCH TIKTOK 🔥", row['Link'], use_container_width=True)
         
         st.divider()
         guesser = st.text_input("Your Name", key="guesser_name")
-        comment = st.text_area("Your Comment", placeholder="Tell us why...")
+        comment = st.text_area("Your Comment", placeholder="Why them?")
         
         names = sorted(df['Name'].unique().tolist())
         cols = st.columns(2)
@@ -114,20 +130,27 @@ elif current_state == "results":
     guesses_df = pd.read_csv(GUESS_FILE) if os.path.exists(GUESS_FILE) else pd.DataFrame()
 
     for i, row in df.iterrows():
+        # Using a session state check to trigger confetti for each specific reveal
+        reveal_key = f"revealed_{i}"
+        if reveal_key not in st.session_state:
+            st.session_state[reveal_key] = False
+
         with st.container(border=True):
             st.subheader(f"Video #{i+1}")
             st.link_button("📺 Re-watch Video", row['Link'])
             
             video_guesses = guesses_df[guesses_df['Owner'] == row['Name']] if not guesses_df.empty else pd.DataFrame()
             if not video_guesses.empty:
-                # Plotly for the data viz
                 fig = px.pie(video_guesses['Guess'].value_counts().reset_index(), values='count', names='Guess', title="The Votes")
                 st.plotly_chart(fig, use_container_width=True)
                 for _, g in video_guesses.iterrows():
                     st.markdown(f"💬 **{g['Guesser']}**: {g['Comment']}")
             
             if st.button(f"✨ REVEAL GLIZZY ✨", key=f"rev_{i}", use_container_width=True):
-                trigger_hotdog_confetti() # New Hot Dog effect
+                st.session_state[reveal_key] = True
+
+            if st.session_state[reveal_key]:
+                trigger_hotdog_confetti(i) # Triggered separately to ensure it loads
                 st.warning(f"THE OWNER WAS: **{row['Name']}**")
 
     if st.button("🧨 RESET GAME", use_container_width=True):
