@@ -79,6 +79,7 @@ try:
     if current_state == "submitting":
         st.metric("Total Glizzies Submitted", submission_count)
         
+        # 1. SHOW THE LOBBY
         if submission_count > 0:
             names_display = []
             for i, name in enumerate(sub_df['Name']):
@@ -86,19 +87,8 @@ try:
                 names_display.append(f"**{name}**{suffix}")
             st.write(f"**Players in lobby:** {', '.join(names_display)}")
 
-        # ALWAYS show this area once someone has submitted, regardless of session memory
-        if st.session_state.get('submitted', False) or submission_count > 0:
-            if st.session_state.get('submitted', False):
-                st.success("🎉 Submission received!")
-            
-            st.divider()
-            st.info("📢 **If you are the host:** Click the button below once everyone has joined. Everyone else, please wait.")
-            if st.button("🚀 CREATE THE QUIZ", type="primary", use_container_width=True):
-                set_state("quiz", int(time.time())); st.rerun()
-            
-            # Auto-refresh for non-hosts to see when the game starts
-            time.sleep(5); st.rerun()
-        else:
+        # 2. SHOW SUBMISSION FORM (Unless already submitted in this session)
+        if not st.session_state.get('submitted', False):
             with st.form("sub_form", clear_on_submit=True):
                 name = st.text_input("Your Name")
                 file = st.file_uploader("Upload", type=["mp4", "mov", "jpg", "jpeg", "png"])
@@ -106,11 +96,24 @@ try:
                     if name and file:
                         st.session_state.my_name = name
                         save_submission(name, file); st.session_state.submitted = True; st.rerun()
+        else:
+            st.success("🎉 Your glizzy is in the pot!")
+
+        # 3. SHOW START BUTTON (Always visible if 1+ person is in, for Host recovery)
+        if submission_count > 0:
+            st.divider()
+            st.info("📢 **Host:** Click below only when everyone is ready.")
+            if st.button("🚀 CREATE THE QUIZ", type="primary", use_container_width=True):
+                set_state("quiz", int(time.time())); st.rerun()
+            
+            # Refresh every 5s so players see when the host starts the quiz
+            time.sleep(5); st.rerun()
         
         with st.expander("🛠️ Admin / Reset"):
             if st.button("Reset Entire Game"): st.session_state.wants_reset = True
 
     elif current_state == "quiz":
+        # (Quiz logic remains the same)
         if 'shuffled_df' not in st.session_state:
             st.session_state.shuffled_df = sub_df.sample(frac=1, random_state=shared_seed).reset_index(drop=True)
             st.session_state.temp_guesses = {}
@@ -143,6 +146,7 @@ try:
                 set_state("sync", shared_seed); st.rerun()
 
     elif current_state == "sync":
+        # (Sync logic remains the same)
         st.header("⏳ Waiting for others...")
         guess_df = pd.read_csv(GUESS_FILE) if os.path.exists(GUESS_FILE) else pd.DataFrame()
         all_players = sub_df['Name'].unique().tolist()
@@ -166,6 +170,7 @@ try:
         else: time.sleep(5); st.rerun()
 
     elif current_state == "results":
+        # (Results logic remains the same)
         st.subheader("📊 Final Results")
         df = sub_df.sample(frac=1, random_state=shared_seed).reset_index(drop=True)
         guesses_df = pd.read_csv(GUESS_FILE)
