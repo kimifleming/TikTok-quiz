@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import os
 import time
+import random
 import plotly.express as px
 
 # Files
@@ -61,7 +62,6 @@ def full_reset():
 # --- UI Setup ---
 st.set_page_config(page_title="GLIZZY GUESS WHO", page_icon="🌭", layout="centered")
 
-# TARGETED CSS
 st.markdown("""
     <style>
     .header-bar {
@@ -97,14 +97,12 @@ st.markdown("""
     </div>
     """, unsafe_allow_html=True)
 
-# --- Global Footer Reset ---
 def global_footer():
     st.write("")
     st.divider()
     with st.expander("🛠️ Admin / Reset"):
         if st.button("Reset & Return to Home", type="secondary", use_container_width=True):
             st.session_state.wants_reset = True
-    
     if st.session_state.get("wants_reset", False):
         st.error("‼️ Reset everything?")
         rc1, rc2 = st.columns(2)
@@ -119,12 +117,8 @@ submission_count = len(pd.read_csv(DATA_FILE)) if os.path.exists(DATA_FILE) else
 
 try:
     if current_state == "submitting":
-        # Live Counter at the Top
         st.metric("Total Glizzies Submitted", submission_count)
-        
-        # Check if user already submitted this session
         if st.session_state.get('submitted', False):
-            # Form "pops away" and shows this instead
             st.success("🎉 Thank you for submitting! Please wait for the quiz to begin.")
             st.info("The host will start the game once everyone has uploaded.")
         else:
@@ -137,16 +131,12 @@ try:
                         save_submission(name, file)
                         st.session_state.submitted = True
                         st.rerun()
-                    else:
-                        st.error("Please provide both a name and a file!")
+                    else: st.error("Please provide both a name and a file!")
 
-        # Admin Section (stays at bottom)
-        st.write("")
         st.divider()
         st.caption("Admin Only: Start the game once everyone is done.")
         if st.button("🚀 CREATE THE QUIZ", type="primary", use_container_width=True):
             st.session_state.confirm_quiz = True
-        
         if st.session_state.get("confirm_quiz", False):
             st.warning("⚠️ **Make sure all entrants are in!**")
             if st.button("✅ Yes, everyone is in", use_container_width=True):
@@ -154,8 +144,14 @@ try:
 
     elif current_state == "quiz":
         st.subheader("🎬 Who is this?")
-        df = pd.read_csv(DATA_FILE)
-        if 'q_idx' not in st.session_state: st.session_state.q_idx = 0
+        
+        # Load and Shuffle Submissions
+        if 'shuffled_df' not in st.session_state:
+            df = pd.read_csv(DATA_FILE)
+            st.session_state.shuffled_df = df.sample(frac=1).reset_index(drop=True)
+            st.session_state.q_idx = 0
+        
+        df = st.session_state.shuffled_df
         
         if st.session_state.q_idx < len(df):
             row = df.iloc[st.session_state.q_idx]
@@ -166,23 +162,32 @@ try:
             else:
                 st.video(row['Path'])
             
-            guesser = st.text_input("Your Name", key="guesser_name")
-            comment = st.text_area("Why?", placeholder="Give us the tea...")
+            # Persistent Guesser Name
+            guesser = st.text_input("Your Name", 
+                                   value=st.session_state.get('persistent_guesser', ''),
+                                   key="guesser_input",
+                                   placeholder="Who is playing?")
             
-            names = sorted(df['Name'].unique().tolist())
+            comment = st.text_area("Why?", placeholder="Give us the tea...", key=f"comm_{st.session_state.q_idx}")
+            
+            names = sorted(pd.read_csv(DATA_FILE)['Name'].unique().tolist())
             for i, n in enumerate(names):
                 if st.button(n, key=f"g_{i}", use_container_width=True):
-                    if not guesser: st.error("Name required!")
+                    if not guesser: 
+                        st.error("Enter your name first!")
                     else:
+                        st.session_state.persistent_guesser = guesser # Remember name
                         save_guess(row['Name'], n, comment, guesser)
-                        st.session_state.q_idx += 1; st.rerun()
+                        st.session_state.q_idx += 1
+                        st.rerun()
         else:
             if st.button("📊 SHOW RESULTS", type="primary", use_container_width=True):
                 set_state("results"); st.rerun()
 
     elif current_state == "results":
         st.subheader("📊 Final Results")
-        df = pd.read_csv(DATA_FILE)
+        # Use the shuffled order for results too
+        df = st.session_state.shuffled_df
         guesses_df = pd.read_csv(GUESS_FILE) if os.path.exists(GUESS_FILE) else pd.DataFrame()
 
         for i, row in df.iterrows():
@@ -198,7 +203,10 @@ try:
                     fig = px.pie(v_guesses['Guess'].value_counts().reset_index(), values='count', names='Guess')
                     fig.update_layout(margin=dict(t=0, b=0, l=0, r=0), height=250)
                     st.plotly_chart(fig, use_container_width=True)
-                    for _, g in v_guesses.iterrows():
+                    
+                    # Filter out blank comments
+                    valid_comments = v_guesses[v_guesses['Comment'].str.strip() != ""]
+                    for _, g in valid_comments.iterrows():
                         st.caption(f"💬 **{g['Guesser']}**: {g['Comment']}")
                 
                 if st.button(f"✨ REVEAL OWNER ✨", key=f"rev_{i}", use_container_width=True):
