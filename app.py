@@ -60,7 +60,7 @@ def full_reset():
 # --- UI Setup ---
 st.set_page_config(page_title="The Glizzy Quiz", page_icon="🌭")
 
-# Global Reset Logic (Accessible even if main block fails)
+# Global Reset Logic
 def global_footer():
     st.write("")
     st.divider()
@@ -101,12 +101,14 @@ try:
         st.divider()
         if st.button("🚀 CREATE THE QUIZ", type="primary", use_container_width=True):
             st.session_state.confirm_quiz = True
+        
+        # Updated Confirmation Message
         if st.session_state.get("confirm_quiz", False):
-            st.warning("⚠️ Ready to start?")
+            st.warning("⚠️ **Please make sure all entrance have submitted before continuing.**")
             c1, c2 = st.columns(2)
-            if c1.button("✅ YES", key="q_yes"):
+            if c1.button("✅ Yes, everyone is in", key="q_yes"):
                 set_state("quiz"); st.session_state.confirm_quiz = False; st.rerun()
-            if c2.button("❌ NO", key="q_no"):
+            if c2.button("❌ No, still waiting", key="q_no"):
                 st.session_state.confirm_quiz = False; st.rerun()
 
     elif current_state == "quiz":
@@ -130,7 +132,7 @@ try:
                         save_guess(row['Name'], n, comment, guesser)
                         st.session_state.q_idx += 1; st.rerun()
         else:
-            if st.button("📊 SHOW RESULTS", type="primary"):
+            if st.button("📊 SHOW RESULTS", type="primary", use_container_width=True):
                 set_state("results"); st.rerun()
 
     elif current_state == "results":
@@ -148,20 +150,19 @@ try:
                     fig = px.pie(v_guesses['Guess'].value_counts().reset_index(), values='count', names='Guess', title="Votes")
                     st.plotly_chart(fig, use_container_width=True)
                 
-                if st.button(f"✨ REVEAL ✨", key=f"rev_{i}"):
+                if st.button(f"✨ REVEAL OWNER ✨", key=f"rev_{i}", use_container_width=True):
                     st.balloons(); st.warning(f"THE OWNER: {row['Name']}")
 
-        # --- LEADERBOARD ---
         if not guesses_df.empty:
             st.divider()
             st.header("🏆 Leaderboard")
-            # Calculate correct guesses
-            guesses_df['correct'] = guesses_df['Owner'] == guesses_df['Guess']
+            # Calculate correct guesses, excluding people guessing their own video
+            guesses_df['correct'] = (guesses_df['Owner'] == guesses_df['Guess']) & (guesses_df['Guesser'] != guesses_df['Owner'])
             leaderboard = guesses_df.groupby('Guesser')['correct'].sum().reset_index()
             leaderboard = leaderboard.sort_values(by='correct', ascending=False)
-            st.table(leaderboard.rename(columns={'correct': 'Correct Guesses'}))
+            st.table(leaderboard.rename(columns={'correct': 'Points'}))
 
 except Exception as e:
-    st.error(f"Something went wrong: {e}")
+    st.error(f"App Error: {e}")
 
 global_footer()
