@@ -9,7 +9,7 @@ DATA_FILE = "submissions.csv"
 GUESS_FILE = "guesses.csv"
 STATE_FILE = "game_state.txt"
 
-# Ensure a directory exists for the uploaded videos
+# Ensure video directory exists
 if not os.path.exists("videos"):
     os.makedirs("videos")
 
@@ -59,52 +59,58 @@ def full_reset():
 
 # --- UI Setup ---
 st.set_page_config(page_title="The Glizzy Quiz", page_icon="🌭")
+
+# Global Reset Logic (Accessible even if main block fails)
+def global_footer():
+    st.write("")
+    st.divider()
+    with st.expander("🏠 Return to Home / Reset"):
+        st.write("Wipes all data and returns to start.")
+        if st.button("Reset & Return to Home", type="secondary", use_container_width=True):
+            st.session_state.wants_reset = True
+    
+    if st.session_state.get("wants_reset", False):
+        st.error("‼️ Delete everything?")
+        rc1, rc2 = st.columns(2)
+        if rc1.button("🔥 YES", key="g_reset_yes"): full_reset()
+        if rc2.button("🚫 NO", key="g_reset_no"): 
+            st.session_state.wants_reset = False
+            st.rerun()
+
+# --- MAIN APP LOGIC ---
 current_state = get_state()
 
-# --- MODE 1: SUBMITTING ---
-if current_state == "submitting":
-    st.title("🌭 Step 1: Submissions")
-    
-    if st.session_state.get('submitted', False):
-        st.success("✅ Thanks for submitting! If all other Glizzy’s have submitted, create the quiz below.")
-    
-    if os.path.exists(DATA_FILE):
-        st.metric("Glizzys Collected", len(pd.read_csv(DATA_FILE)))
+try:
+    if current_state == "submitting":
+        st.title("🌭 Step 1: Submissions")
+        if st.session_state.get('submitted', False):
+            st.success("✅ Thanks for submitting! If all other Glizzys have submitted, create the quiz below.")
+        
+        if os.path.exists(DATA_FILE):
+            st.metric("Glizzys Collected", len(pd.read_csv(DATA_FILE)))
 
-    with st.form("sub_form", clear_on_submit=True):
-        name = st.text_input("Your Name")
-        video = st.file_uploader("Upload your video", type=["mp4", "mov", "avi"])
-        if st.form_submit_button("Submit Video"):
-            if name and video:
-                with st.spinner("Uploading Glizzy..."):
+        with st.form("sub_form", clear_on_submit=True):
+            name = st.text_input("Your Name")
+            video = st.file_uploader("Upload video", type=["mp4", "mov", "avi"])
+            if st.form_submit_button("Submit"):
+                if name and video:
                     save_submission(name, video)
-                st.session_state.submitted = True
-                st.rerun()
-            else:
-                st.error("Missing name or video file!")
-    
-    st.divider()
-    
-    if st.button("🚀 CREATE THE QUIZ", type="primary", use_container_width=True):
-        st.session_state.confirm_quiz = True
+                    st.session_state.submitted = True
+                    st.rerun()
+        
+        st.divider()
+        if st.button("🚀 CREATE THE QUIZ", type="primary", use_container_width=True):
+            st.session_state.confirm_quiz = True
+        if st.session_state.get("confirm_quiz", False):
+            st.warning("⚠️ Ready to start?")
+            c1, c2 = st.columns(2)
+            if c1.button("✅ YES", key="q_yes"):
+                set_state("quiz"); st.session_state.confirm_quiz = False; st.rerun()
+            if c2.button("❌ NO", key="q_no"):
+                st.session_state.confirm_quiz = False; st.rerun()
 
-    if st.session_state.get("confirm_quiz", False):
-        st.warning("⚠️ Has everyone submitted?")
-        c1, c2 = st.columns(2)
-        if c1.button("✅ YES", use_container_width=True):
-            set_state("quiz")
-            st.session_state.confirm_quiz = False
-            st.rerun()
-        if c2.button("❌ NO", use_container_width=True):
-            st.session_state.confirm_quiz = False
-            st.rerun()
-
-# --- MODE 2: THE QUIZ ---
-elif current_state == "quiz":
-    st.title("🎬 Who Posted This?")
-    if not os.path.exists(DATA_FILE):
-        st.error("Data missing! Please reset.")
-    else:
+    elif current_state == "quiz":
+        st.title("🎬 Who Posted This?")
         df = pd.read_csv(DATA_FILE)
         if 'q_idx' not in st.session_state: st.session_state.q_idx = 0
         
@@ -113,29 +119,22 @@ elif current_state == "quiz":
             st.write(f"**Video {st.session_state.q_idx + 1} of {len(df)}**")
             st.video(row['VideoPath'])
             
-            st.divider()
             guesser = st.text_input("Your Name", key="guesser_name")
-            comment = st.text_area("Your Comment")
-            
+            comment = st.text_area("Why them?")
             names = sorted(df['Name'].unique().tolist())
             cols = st.columns(2)
             for i, n in enumerate(names):
-                if cols[i%2].button(n, key=f"guess_{i}", use_container_width=True):
+                if cols[i%2].button(n, key=f"g_{i}", use_container_width=True):
                     if not guesser: st.error("Name required!")
                     else:
                         save_guess(row['Name'], n, comment, guesser)
-                        st.session_state.q_idx += 1
-                        st.rerun()
+                        st.session_state.q_idx += 1; st.rerun()
         else:
-            st.success("All videos watched!")
-            if st.button("📊 SHOW RESULTS", type="primary", use_container_width=True):
-                set_state("results")
-                st.rerun()
+            if st.button("📊 SHOW RESULTS", type="primary"):
+                set_state("results"); st.rerun()
 
-# --- MODE 3: RESULTS ---
-elif current_state == "results":
-    st.title("📊 Final Results")
-    if os.path.exists(DATA_FILE):
+    elif current_state == "results":
+        st.title("📊 Final Results")
         df = pd.read_csv(DATA_FILE)
         guesses_df = pd.read_csv(GUESS_FILE) if os.path.exists(GUESS_FILE) else pd.DataFrame()
 
@@ -144,33 +143,25 @@ elif current_state == "results":
                 st.subheader(f"Video #{i+1}")
                 st.video(row['VideoPath'])
                 
-                video_guesses = guesses_df[guesses_df['Owner'] == row['Name']] if not guesses_df.empty else pd.DataFrame()
-                if not video_guesses.empty:
-                    fig = px.pie(video_guesses['Guess'].value_counts().reset_index(), 
-                                 values='count', names='Guess', title="The Votes")
-                    fig.update_layout(margin=dict(t=30, b=0, l=0, r=0), height=300)
+                v_guesses = guesses_df[guesses_df['Owner'] == row['Name']] if not guesses_df.empty else pd.DataFrame()
+                if not v_guesses.empty:
+                    fig = px.pie(v_guesses['Guess'].value_counts().reset_index(), values='count', names='Guess', title="Votes")
                     st.plotly_chart(fig, use_container_width=True)
-                    for _, g in video_guesses.iterrows():
-                        st.markdown(f"💬 **{g['Guesser']}**: {g['Comment']}")
                 
-                if st.button(f"✨ REVEAL OWNER ✨", key=f"rev_{i}", use_container_width=True):
-                    st.balloons()
-                    st.warning(f"THE OWNER WAS: **{row['Name']}**")
+                if st.button(f"✨ REVEAL ✨", key=f"rev_{i}"):
+                    st.balloons(); st.warning(f"THE OWNER: {row['Name']}")
 
-# --- FOOTER: SMALL RESET BUTTON ---
-st.write("")
-st.write("")
-st.divider()
-with st.expander("🛠️ Admin Controls"):
-    st.write("Dangerous Zone - This wipes all data and returns to start.")
-    if st.button("Reset & Return to Home", type="secondary", use_container_width=True):
-        st.session_state.trigger_reset = True
+        # --- LEADERBOARD ---
+        if not guesses_df.empty:
+            st.divider()
+            st.header("🏆 Leaderboard")
+            # Calculate correct guesses
+            guesses_df['correct'] = guesses_df['Owner'] == guesses_df['Guess']
+            leaderboard = guesses_df.groupby('Guesser')['correct'].sum().reset_index()
+            leaderboard = leaderboard.sort_values(by='correct', ascending=False)
+            st.table(leaderboard.rename(columns={'correct': 'Correct Guesses'}))
 
-if st.session_state.get("trigger_reset", False):
-    st.error("‼️ ARE YOU SURE? This deletes all videos and submissions.")
-    rc1, rc2 = st.columns(2)
-    if rc1.button("🔥 YES, WIPE IT", use_container_width=True):
-        full_reset()
-    if rc2.button("🚫 CANCEL", use_container_width=True):
-        st.session_state.trigger_reset = False
-        st.rerun()
+except Exception as e:
+    st.error(f"Something went wrong: {e}")
+
+global_footer()
